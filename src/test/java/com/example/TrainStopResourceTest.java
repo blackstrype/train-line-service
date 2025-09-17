@@ -1,0 +1,119 @@
+package com.example;
+
+import io.quarkus.test.junit.QuarkusTest;
+import jakarta.transaction.Transactional;
+import jakarta.ws.rs.core.MediaType;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+import static io.restassured.RestAssured.given;
+import static org.hamcrest.CoreMatchers.is;
+
+@QuarkusTest
+public class TrainStopResourceTest {
+
+    @BeforeEach
+    @Transactional
+    public void setup() {
+        TrainStop.deleteAll();
+    }
+
+    @Test
+    public void testCreateTrainStop() {
+        given()
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("""
+                {
+                    "stationId": "station-1",
+                    "arrivalTime": "2025-09-16T10:00:00Z"
+                }
+            """)
+                .when().post("/stops")
+                .then()
+                .statusCode(201)
+                .body("stationId", is("station-1"));
+    }
+
+    @Test
+    public void testListAllTrainStops() {
+        // We will create some stops first to ensure the list is not empty
+        given().contentType("application/json").body("""
+        {
+          "stationId": "station-2",
+          "arrivalTime": "2025-09-16T10:00:00Z"
+        }
+        """).when().post("/stops").then().statusCode(201);
+        given().contentType("application/json").body("""
+        {
+          "stationId": "station-3",
+          "arrivalTime": "2025-09-16T10:05:00Z"
+        }
+        """).when().post("/stops").then().statusCode(201);
+
+        given()
+                .when().get("/stops")
+                .then()
+                .statusCode(200)
+                .body("size()", is(2));
+    }
+
+    @Test
+    public void testGetTrainStopById() {
+        // First create a stop to update
+        String createdStop = given().contentType("application/json").body("""
+        {
+          "stationId": "station-4",
+          "arrivalTime": "2025-09-16T11:00:00Z"
+        }
+        """).when().post("/stops").then().statusCode(201).extract().asString();
+        long stopId = Long.parseLong(createdStop.split(":")[1].split(",")[0]);
+
+        given()
+                .when().get("/stops/" + stopId)
+                .then()
+                .statusCode(200)
+                .body("stationId", is("station-4"));
+    }
+
+    @Test
+    public void testUpdateTrainStop() {
+        // First create a stop to update
+        String createdStop = given().contentType("application/json").body("""
+        {
+          "stationId": "station-5",
+          "arrivalTime": "2025-09-16T11:00:00Z"
+        }
+        """).when().post("/stops").then().statusCode(201).extract().asString();
+        long stopId = Long.parseLong(createdStop.split(":")[1].split(",")[0]);
+
+        given()
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("""
+                {
+                    "stationId": "station-6",
+                    "arrivalTime": "2025-09-16T11:00:00Z"
+                }
+            """)
+                .when().put("/stops/" + stopId)
+                .then()
+                .statusCode(200)
+                .body("stationId", is("station-6"));
+    }
+
+    @Test
+    public void testDeleteTrainStop() {
+        // First create a stop to delete
+        String createdStop = given().contentType("application/json").body("""
+        {
+          "stationId": "station-7",
+          "arrivalTime": "2025-09-16T12:00:00Z"
+        }
+        """).when().post("/stops").then().statusCode(201).extract().asString();
+        long stopId = Long.parseLong(createdStop.split(":")[1].split(",")[0]);
+
+        given()
+                .when().delete("/stops/" + stopId)
+                .then()
+                .statusCode(204);
+    }
+}
