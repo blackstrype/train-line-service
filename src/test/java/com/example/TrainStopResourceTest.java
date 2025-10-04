@@ -1,10 +1,16 @@
 package com.example;
 
+import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
+import io.quarkus.test.security.TestSecurity;
 import jakarta.transaction.Transactional;
 import jakarta.ws.rs.core.MediaType;
+import org.eclipse.microprofile.rest.client.inject.RestClient;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
+
+import java.util.List;
 
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.CoreMatchers.is;
@@ -12,10 +18,22 @@ import static org.hamcrest.CoreMatchers.is;
 @QuarkusTest
 public class TrainStopResourceTest {
 
+    @InjectMock
+    @RestClient
+    StationService stationService;
+
     @BeforeEach
     @Transactional
-    public void setup() {
+    public void setup()
+    {
         TrainStop.deleteAll();
+
+        Station mockStation = new Station();
+        mockStation.name = "Mocked Central Station";
+        mockStation.location = "Downtown";
+
+        Mockito.when(stationService.getStationById(Mockito.anyString())).thenReturn(mockStation);
+        Mockito.when(stationService.getAllStations()).thenReturn(List.of(mockStation));
     }
 
     @Test
@@ -35,6 +53,7 @@ public class TrainStopResourceTest {
     }
 
     @Test
+    @TestSecurity(user = "test-admin", roles = "admin")
     public void testListAllTrainStops() {
         // We will create some stops first to ensure the list is not empty
         given().contentType("application/json").body("""
