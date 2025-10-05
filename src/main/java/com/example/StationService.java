@@ -13,6 +13,8 @@ import java.util.List;
 @RegisterRestClient(configKey = "station-service")
 @Path("/stations")
 public interface StationService {
+    int getStationTimeout = 5000;
+    int getStationMaxRetries = 3;
 
     @GET
     @Produces(MediaType.APPLICATION_JSON)
@@ -21,5 +23,7 @@ public interface StationService {
     @GET
     @Path("/{id}")
     @Produces(MediaType.APPLICATION_JSON)
+    @Timeout(getStationTimeout)
+    @Retry(maxRetries = getStationMaxRetries, maxDuration = getStationTimeout, delay = 1000)
     Station getStationById(@PathParam("id") String id);
 }
