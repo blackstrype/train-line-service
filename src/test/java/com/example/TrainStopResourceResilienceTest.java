@@ -2,27 +2,37 @@ package com.example;
 
 import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
+import io.smallrye.faulttolerance.api.CircuitBreakerMaintenance;
+import jakarta.inject.Inject;
+import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;
 import org.eclipse.microprofile.faulttolerance.exceptions.CircuitBreakerOpenException;
+import org.eclipse.microprofile.faulttolerance.exceptions.TimeoutException;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
-import jakarta.inject.Inject;
-import jakarta.ws.rs.WebApplicationException;
 
 import java.time.Instant;
-import org.eclipse.microprofile.faulttolerance.exceptions.TimeoutException;
 
 @QuarkusTest
 public class TrainStopResourceResilienceTest {
 
     @Inject
     TrainStopResource trainStopResource; // Inject the real service we are testing
+    @Inject
+    CircuitBreakerMaintenance circuitBreakerMaintenance;
 
     @InjectMock
     @RestClient
     StationService stationService;
+
+    @AfterEach
+    public void resetCircuitBreaker() {
+        circuitBreakerMaintenance.resetAll();
+    }
 
     @Test
     void testRetryPolicy_SucceedsOnThirdAttempt() {
