@@ -1,4 +1,0 @@
-#!/bin/sh
-
-## This file provides details specific to the cloud run and registry environment
-export CONTAINER_IMAGE_REGISTRY=acrquarkustraining20250925-fndyedgwgjbredff.azurecr.io
