@@ -6,10 +6,7 @@ import io.smallrye.faulttolerance.api.CircuitBreakerMaintenance;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;
-import org.eclipse.microprofile.faulttolerance.exceptions.CircuitBreakerOpenException;
-import org.eclipse.microprofile.faulttolerance.exceptions.TimeoutException;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -36,7 +33,7 @@ public class TrainStopResourceResilienceTest {
 
     @Test
     void testRetryPolicy_SucceedsOnThirdAttempt() {
-        // 1. Arrange: Program the mock's behavior for consecutive calls
+        // Given: Program the mock's behavior for consecutive calls
         TrainStop trainStop = new TrainStop();
         trainStop.stationId = "1";
         trainStop.arrivalTime = Instant.now();
@@ -50,10 +47,10 @@ public class TrainStopResourceResilienceTest {
                 .thenThrow(new WebApplicationException("Second failure", 500))
                 .thenReturn(mockStation);
 
-        // 2. Act: Call the real service logic that uses the mock
+        // When: Call the real service logic that uses the mock
         Response result = trainStopResource.create(trainStop);
 
-        // 3. Assert: Verify we got the successful result after retries
+        // Then: Verify we got the successful result after retries
         Assertions.assertNotNull(result);
         Assertions.assertEquals("1", ((TrainStop) result.getEntity()).stationId);
 
@@ -62,8 +59,8 @@ public class TrainStopResourceResilienceTest {
     }
 
     @Test
-    void testCreateStop_WhenStationServiceIsSlow_ThrowsTimeoutException() {
-        // 1. Arrange: Program the mock to simulate a 3-second delay.
+    void testCreateStop_WhenStationServiceIsSlow_UsesFallback() {
+        // Given: Program the mock to simulate a 3-second delay.
         // This is intentionally longer than the @Timeout(2000) on the client method.
         TrainStop trainStop = new TrainStop();
         trainStop.stationId = "1";
@@ -79,22 +76,20 @@ public class TrainStopResourceResilienceTest {
             return mockStation;
         }).when(stationService).getStationById(Mockito.anyString());
 
-        // 2. Act & Assert:
-        // We now call our real service logic. We expect this call to fail
-        // with a TimeoutException because its dependency (the mock) is too slow.
-        // Assertions.assertThrows is the standard way to verify an exception is thrown.
-        Assertions.assertThrows(TimeoutException.class, () -> {
-            trainStopResource.create(trainStop);
-        });
+        // When: create is called and will provide a result using the fallback station
+        Response result = trainStopResource.create(trainStop);
 
-        // 3. Verify (Optional but good practice):
+        // Then: the create should nonetheless succeed with a 201
+        Assertions.assertNotNull(result);
+        Assertions.assertEquals("1", ((TrainStop) result.getEntity()).stationId);
+
         // Confirm that our mock was indeed called exactly one time before it timed out.
         Mockito.verify(stationService, Mockito.times(1)).getStationById("1");
     }
     
     @Test
     void testCreateStop_WhenStationServiceIsSlowAndFailureProne_SucceedsOnThirdAttempt() {
-        // 1. Arrange: Program the mock's behavior for consecutive calls
+        // Given: Program the mock's behavior for consecutive calls
         TrainStop trainStop = new TrainStop();
         trainStop.stationId = "1";
         trainStop.arrivalTime = Instant.now();
@@ -117,10 +112,10 @@ public class TrainStopResourceResilienceTest {
                     return mockStation;
                 });
 
-        // 2. Act: Call the real service logic that uses the mock
+        // When: Call the real service logic that uses the mock
         Response result = trainStopResource.create(trainStop);
 
-        // 3. Assert: Verify we got the successful result after retries
+        // Then: Verify we got the successful result after retries
         Assertions.assertNotNull(result);
         Assertions.assertEquals("1", ((TrainStop) result.getEntity()).stationId);
 
@@ -148,7 +143,7 @@ public class TrainStopResourceResilienceTest {
 
         // When - First calls with 3 retries should succeed open the circuit
         int i;
-        for(i = 0; i < 3; i++) {
+        for (i = 0; i < 3; i++) {
             TrainStop trainStop = new TrainStop();
             trainStop.stationId = i + "";
             trainStop.arrivalTime = Instant.now();
@@ -156,14 +151,42 @@ public class TrainStopResourceResilienceTest {
             Assertions.assertNotNull(result);
             Assertions.assertEquals(i + "", ((TrainStop) result.getEntity()).stationId);
         }
-        // When and Then - Subsequent calls should immediately fail with CircuitBreakerOpenException
-        TrainStop trainStop = new TrainStop();
-        trainStop.stationId = i + "";
-        trainStop.arrivalTime = Instant.now();
-        Assertions.assertThrows(CircuitBreakerOpenException.class, () -> trainStopResource.create(trainStop));
-        Assertions.assertThrows(CircuitBreakerOpenException.class, () -> trainStopResource.create(trainStop));
+        // When and Then - Subsequent calls should succeed via the fallback
+        for (; i < 6; i++) {
+            TrainStop trainStop = new TrainStop();
+            trainStop.stationId = i + "";
+            trainStop.arrivalTime = Instant.now();
+            Response result = trainStopResource.create(trainStop);
+            Assertions.assertNotNull(result);
+            Assertions.assertEquals(i + "", ((TrainStop) result.getEntity()).stationId);
+        }
 
-        // Verify that the stationService was called 10 times (3 requests*3 retries and 1 retry) to open the circuit
+        // Verify that the stationService was called 10 times (3 requests*3 retries and 1 retry) to open the circuit and thereafter the fallback was used
         Mockito.verify(stationService, Mockito.times(10)).getStationById(Mockito.anyString());
+    }
+
+    @Test
+    void testFallback_ProvidesDefaultWhenCircuitIsOpen() {
+        // Given: Program the mock to fail consecutively to open the circuit breaker
+        Mockito.when(stationService.getStationById(Mockito.anyString()))
+                .thenThrow(new WebApplicationException("Failure", 500))
+                .thenThrow(new WebApplicationException("Failure", 500))
+                .thenThrow(new WebApplicationException("Failure", 500));
+        
+        // When: StationService station details are requested and the three retries fail
+        TrainStop trainStop = new TrainStop();
+        trainStop.stationId = "1";
+        trainStop.arrivalTime = Instant.now();
+        // These calls will trigger the max retry failure and a fallback Station should be provided
+        Response result = trainStopResource.create(trainStop);
+
+        // Then: The fallback station should be provided and prevent exceptions
+        Assertions.assertNotNull(result);
+        Assertions.assertEquals(Response.Status.CREATED.getStatusCode(), result.getStatus());
+        TrainStop createdTrainStop = (TrainStop) result.getEntity();
+        Assertions.assertEquals("1", createdTrainStop.stationId); // Assert fallback value
+
+        // Verify that stationService was called enough times to trigger a fallback
+        Mockito.verify(stationService, Mockito.times(4)).getStationById(Mockito.anyString());
     }
 }
