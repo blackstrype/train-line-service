@@ -6,6 +6,7 @@ import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import org.eclipse.microprofile.faulttolerance.CircuitBreaker;
+import org.eclipse.microprofile.faulttolerance.Fallback;
 import org.eclipse.microprofile.faulttolerance.Retry;
 import org.eclipse.microprofile.faulttolerance.Timeout;
 import org.eclipse.microprofile.rest.client.inject.RegisterRestClient;
@@ -32,5 +33,13 @@ public interface StationService {
             delay = 10000,                // ...open the circuit for a while
             successThreshold = 2         // Close circuit after 2 consecutive successes
     )
+    @Fallback(fallbackMethod = "getStationByIdFallback")
     Station getStationById(@PathParam("id") String id);
+
+    static Station getStationByIdFallback(String id) {
+        Station fallback = new Station();
+        fallback.id = "0";
+        fallback.name = "Station Details Currently Unavailable";
+        return fallback;
+    }
 }
