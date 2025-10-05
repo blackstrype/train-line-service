@@ -3,6 +3,7 @@ package com.example;
 import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
 import jakarta.ws.rs.core.Response;
+import org.eclipse.microprofile.faulttolerance.exceptions.CircuitBreakerOpenException;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -115,5 +116,44 @@ public class TrainStopResourceResilienceTest {
 
         // Also verify the mock was called exactly 4 times
         Mockito.verify(stationService, Mockito.times(3)).getStationById("1");
+    }
+
+    @Test
+    void testCircuitBreaker_OpenAfterConsecutiveFailures() {
+        // Given: Program the mock to fail consecutively
+        // Simulate 6 consecutive failed requests to open the circuit
+        // Each call to create() will attempt 3 retries, so we need 6 / 3 = 2 failed create requests to open the circuit
+        Mockito.when(stationService.getStationById(Mockito.anyString()))
+                .thenThrow(new WebApplicationException("Failure", 500))
+                .thenThrow(new WebApplicationException("Failure", 500))
+                .thenReturn(new Station())
+                .thenThrow(new WebApplicationException("Failure", 500))
+                .thenThrow(new WebApplicationException("Failure", 500))
+                .thenReturn(new Station())
+                .thenThrow(new WebApplicationException("Failure", 500))
+                .thenThrow(new WebApplicationException("Failure", 500))
+                .thenReturn(new Station())
+                .thenThrow(new WebApplicationException("Failure", 500))
+                .thenReturn(new Station()); // This should not be called if circuit is open
+
+        // When - First calls with 3 retries should succeed open the circuit
+        int i;
+        for(i = 0; i < 3; i++) {
+            TrainStop trainStop = new TrainStop();
+            trainStop.stationId = i + "";
+            trainStop.arrivalTime = Instant.now();
+            Response result = trainStopResource.create(trainStop);
+            Assertions.assertNotNull(result);
+            Assertions.assertEquals(i + "", ((TrainStop) result.getEntity()).stationId);
+        }
+        // When and Then - Subsequent calls should immediately fail with CircuitBreakerOpenException
+        TrainStop trainStop = new TrainStop();
+        trainStop.stationId = i + "";
+        trainStop.arrivalTime = Instant.now();
+        Assertions.assertThrows(CircuitBreakerOpenException.class, () -> trainStopResource.create(trainStop));
+        Assertions.assertThrows(CircuitBreakerOpenException.class, () -> trainStopResource.create(trainStop));
+
+        // Verify that the stationService was called 10 times (3 requests*3 retries and 1 retry) to open the circuit
+        Mockito.verify(stationService, Mockito.times(10)).getStationById(Mockito.anyString());
     }
 }
