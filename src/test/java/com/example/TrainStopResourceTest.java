@@ -2,7 +2,6 @@ package com.example;
 
 import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
-import io.quarkus.test.security.TestSecurity;
 import jakarta.transaction.Transactional;
 import jakarta.ws.rs.core.MediaType;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
@@ -53,7 +52,6 @@ public class TrainStopResourceTest {
     }
 
     @Test
-    @TestSecurity(user = "test-admin", roles = "admin")
     public void testListAllTrainStops() {
         // We will create some stops first to ensure the list is not empty
         given().contentType("application/json").body("""

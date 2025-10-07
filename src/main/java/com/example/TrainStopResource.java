@@ -1,7 +1,6 @@
 package com.example;
 
 import io.quarkus.logging.Log;
-import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import jakarta.validation.Valid;
@@ -47,7 +46,6 @@ public class TrainStopResource {
     }
 
     @GET
-    @RolesAllowed("admin")
     public List<TrainStop> list() {
         return TrainStop.listAll();
     }
