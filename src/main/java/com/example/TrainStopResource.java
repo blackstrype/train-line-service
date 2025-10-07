@@ -47,7 +47,7 @@ public class TrainStopResource {
     }
 
     @GET
-    @RolesAllowed("admin")
+    //@RolesAllowed("admin")
     public List<TrainStop> list() {
         return TrainStop.listAll();
     }
