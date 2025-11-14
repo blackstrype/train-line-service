@@ -167,7 +167,7 @@ public class TrainStopResourceResilienceTest {
 
     @Test
     void testFallback_ProvidesDefaultWhenCircuitIsOpen() {
-        // Given: Program the mock to fail consecutively to open the circuit breaker
+        // Given: Program the mock to fail consecutively and to open the circuit breaker
         Mockito.when(stationService.getStationById(Mockito.anyString()))
                 .thenThrow(new WebApplicationException("Failure", 500))
                 .thenThrow(new WebApplicationException("Failure", 500))
