@@ -33,7 +33,7 @@ public interface StationService {
             delay = 10000,                // ...open the circuit for a while
             successThreshold = 2         // Close circuit after 2 consecutive successes
     )
-    @Fallback(fallbackMethod = "getStationByIdFallback")
+    @Fallback(StationFallbackHandler.class)
     Station getStationById(@PathParam("id") String id);
 
     static Station getStationByIdFallback(String id) {

@@ -7,6 +7,7 @@ import jakarta.validation.Valid;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
@@ -25,6 +26,12 @@ public class TrainStopResource {
     @RestClient
     StationService stationService;
 
+    @Inject
+    StationDetailsProducer stationDetailsProducer;
+
+    @ConfigProperty(name = "feature.toggle.station-details-async", defaultValue = "false")
+    boolean featureStationDetailsAsync;
+
     @Operation(summary = "Create a new train stop or retrieve an existing one")
     @APIResponse(responseCode = "201", description = "Train stop created successfully")
     @APIResponse(responseCode = "200", description = "Train stop already exists")
@@ -38,11 +45,19 @@ public class TrainStopResource {
         }
 
         // Enrich train stop details
-        Station station = stationService.getStationById(trainStop.stationId);
-        Log.infof("Found station: %s", station.name);
+        int responseCode = Response.Status.CREATED.getStatusCode();
+        if (!this.featureStationDetailsAsync) {
+            Station station = stationService.getStationById(trainStop.stationId);
+            Log.infof("Found station: %s", station.name);
+            trainStop.stationName = station.name;
+            trainStop.persist();
+        } else {
+            trainStop.persist();
+            stationDetailsProducer.requestStationDetails(trainStop.id, trainStop.stationId);
+            responseCode = Response.Status.ACCEPTED.getStatusCode();
+        }
 
-        trainStop.persist();
-        return Response.ok(trainStop).status(201).build();
+        return Response.ok(trainStop).status(responseCode).build();
     }
 
     @GET

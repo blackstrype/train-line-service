@@ -4,6 +4,7 @@ import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
 import jakarta.transaction.Transactional;
 import jakarta.ws.rs.core.MediaType;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -21,10 +22,17 @@ public class TrainStopResourceTest {
     @RestClient
     StationService stationService;
 
+    @ConfigProperty(name = "feature.toggle.station-details-async")
+    boolean stationDetailsAsync;
+    private int expectedCreateStatusCode;
+
     @BeforeEach
     @Transactional
     public void setup()
     {
+        // Set the expected status code based on the feature toggle
+        expectedCreateStatusCode = stationDetailsAsync ? 202 : 201;
+
         TrainStop.deleteAll();
 
         Station mockStation = new Station();
@@ -47,7 +55,7 @@ public class TrainStopResourceTest {
             """)
                 .when().post("/stops")
                 .then()
-                .statusCode(201)
+                .statusCode(expectedCreateStatusCode)
                 .body("stationId", is("station-1"));
     }
 
@@ -59,13 +67,17 @@ public class TrainStopResourceTest {
           "stationId": "station-2",
           "arrivalTime": "2025-09-16T10:00:00Z"
         }
-        """).when().post("/stops").then().statusCode(201);
+        """).when().post("/stops").then()
+                .statusCode(expectedCreateStatusCode)
+                .body("stationId", is("station-2"));
         given().contentType("application/json").body("""
         {
           "stationId": "station-3",
           "arrivalTime": "2025-09-16T10:05:00Z"
         }
-        """).when().post("/stops").then().statusCode(201);
+        """).when().post("/stops").then()
+                .statusCode(expectedCreateStatusCode)
+                .body("stationId", is("station-3"));
 
         given()
                 .when().get("/stops")
@@ -82,7 +94,9 @@ public class TrainStopResourceTest {
           "stationId": "station-4",
           "arrivalTime": "2025-09-16T11:00:00Z"
         }
-        """).when().post("/stops").then().statusCode(201).extract().asString();
+        """).when().post("/stops").then()
+                .statusCode(expectedCreateStatusCode)
+                .extract().asString();
         long stopId = Long.parseLong(createdStop.split(":")[1].split(",")[0]);
 
         given()
@@ -100,7 +114,9 @@ public class TrainStopResourceTest {
           "stationId": "station-5",
           "arrivalTime": "2025-09-16T11:00:00Z"
         }
-        """).when().post("/stops").then().statusCode(201).extract().asString();
+        """).when().post("/stops").then()
+                .statusCode(expectedCreateStatusCode)
+                .extract().asString();
         long stopId = Long.parseLong(createdStop.split(":")[1].split(",")[0]);
 
         given()
@@ -125,7 +141,9 @@ public class TrainStopResourceTest {
           "stationId": "station-7",
           "arrivalTime": "2025-09-16T12:00:00Z"
         }
-        """).when().post("/stops").then().statusCode(201).extract().asString();
+        """).when().post("/stops").then()
+                .statusCode(expectedCreateStatusCode)
+                .extract().asString();
         long stopId = Long.parseLong(createdStop.split(":")[1].split(",")[0]);
 
         given()

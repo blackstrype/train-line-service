@@ -6,9 +6,11 @@ import io.smallrye.faulttolerance.api.CircuitBreakerMaintenance;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
@@ -22,6 +24,9 @@ public class TrainStopResourceResilienceTest {
     @Inject
     CircuitBreakerMaintenance circuitBreakerMaintenance;
 
+    @ConfigProperty(name = "feature.toggle.station-details-async", defaultValue = "false")
+    boolean stationDetailsAsync;
+
     @InjectMock
     @RestClient
     StationService stationService;
@@ -33,6 +38,8 @@ public class TrainStopResourceResilienceTest {
 
     @Test
     void testRetryPolicy_SucceedsOnThirdAttempt() {
+        Assumptions.assumeFalse(stationDetailsAsync, "Station details async feature is enabled");
+
         // Given: Program the mock's behavior for consecutive calls
         TrainStop trainStop = new TrainStop();
         trainStop.stationId = "1";
@@ -60,6 +67,8 @@ public class TrainStopResourceResilienceTest {
 
     @Test
     void testCreateStop_WhenStationServiceIsSlow_UsesFallback() {
+        Assumptions.assumeFalse(stationDetailsAsync, "Station details async feature is enabled");
+
         // Given: Program the mock to simulate a 3-second delay.
         // This is intentionally longer than the @Timeout(2000) on the client method.
         TrainStop trainStop = new TrainStop();
@@ -89,6 +98,8 @@ public class TrainStopResourceResilienceTest {
     
     @Test
     void testCreateStop_WhenStationServiceIsSlowAndFailureProne_SucceedsOnThirdAttempt() {
+        Assumptions.assumeFalse(stationDetailsAsync, "Station details async feature is enabled");
+
         // Given: Program the mock's behavior for consecutive calls
         TrainStop trainStop = new TrainStop();
         trainStop.stationId = "1";
@@ -125,6 +136,8 @@ public class TrainStopResourceResilienceTest {
 
     @Test
     void testCircuitBreaker_OpenAfterConsecutiveFailures() {
+        Assumptions.assumeFalse(stationDetailsAsync, "Station details async feature is enabled");
+
         // Given: Program the mock to fail consecutively
         // Simulate 6 consecutive failed requests to open the circuit
         // Each call to create() will attempt 3 retries, so we need 6 / 3 = 2 failed create requests to open the circuit
@@ -167,6 +180,8 @@ public class TrainStopResourceResilienceTest {
 
     @Test
     void testFallback_ProvidesDefaultWhenCircuitIsOpen() {
+        Assumptions.assumeFalse(stationDetailsAsync, "Station details async feature is enabled");
+
         // Given: Program the mock to fail consecutively and to open the circuit breaker
         Mockito.when(stationService.getStationById(Mockito.anyString()))
                 .thenThrow(new WebApplicationException("Failure", 500))
