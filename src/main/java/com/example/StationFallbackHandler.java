@@ -1,5 +1,6 @@
 package com.example;
 
+import io.micrometer.core.annotation.Counted;
 import jakarta.enterprise.context.ApplicationScoped;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.eclipse.microprofile.faulttolerance.ExecutionContext;
@@ -12,6 +13,7 @@ public class StationFallbackHandler implements FallbackHandler<Station> {
     boolean stationDetailsAsync;
 
     @Override
+    @Counted("station-fallback-handler")
     public Station handle(ExecutionContext context) {
         // If the async feature is enabled, propagate exceptions
         if (stationDetailsAsync) {

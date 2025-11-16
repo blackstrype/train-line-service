@@ -1,5 +1,6 @@
 package com.example;
 
+import io.micrometer.core.annotation.Timed;
 import io.quarkus.logging.Log;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
@@ -8,6 +9,7 @@ import org.eclipse.microprofile.faulttolerance.Retry;
 import org.eclipse.microprofile.reactive.messaging.Incoming;
 import jakarta.enterprise.context.ApplicationScoped;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.Optional;
 
@@ -21,15 +23,12 @@ public class StationDetailsConsumer {
     @Incoming("station-details-requests-in")
     @Transactional
     @Retry(maxRetries = 3, delay = 1000)
+    @Timed("process-station-details")
     public void processStationDetailsRequest(StationDetailsRequestMessage request) {
         Log.infof("Received station detail request for trainStop: %d, stationId: %s", request.trainStopId(), request.stationId());
 
-        Optional<TrainStop> stopOptional = TrainStop.findByIdOptional(request.trainStopId());
-        if (stopOptional.isEmpty()) {
-            Log.warnf("No TrainStop with id %d, skipping update.", request.trainStopId());
-            return;
-        }
-        TrainStop stopToUpdate = stopOptional.get();
+        TrainStop stopToUpdate = getTrainStopToUpdate(request);
+        if (stopToUpdate == null) return;
 
         try {
             Station station = stationService.getStationById(request.stationId());
@@ -46,5 +45,15 @@ public class StationDetailsConsumer {
                 stopToUpdate.persist();
             }
         }
+    }
+
+    private static @Nullable TrainStop getTrainStopToUpdate(StationDetailsRequestMessage request) {
+        Optional<TrainStop> stopOptional = TrainStop.findByIdOptional(request.trainStopId());
+        if (stopOptional.isEmpty()) {
+            Log.warnf("No TrainStop with id %d, skipping update.", request.trainStopId());
+            return null;
+        }
+        TrainStop stopToUpdate = stopOptional.get();
+        return stopToUpdate;
     }
 }

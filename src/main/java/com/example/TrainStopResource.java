@@ -33,7 +33,8 @@ public class TrainStopResource {
     boolean featureStationDetailsAsync;
 
     @Operation(summary = "Create a new train stop or retrieve an existing one")
-    @APIResponse(responseCode = "201", description = "Train stop created successfully")
+    @APIResponse(responseCode = "201", description = "(sync mode) Train stop created successfully with station details")
+    @APIResponse(responseCode = "202", description = "(async mode) Train stop creation accepted without station details")
     @APIResponse(responseCode = "200", description = "Train stop already exists")
     @APIResponse(responseCode = "400", description = "Invalid request payload")
     @POST
